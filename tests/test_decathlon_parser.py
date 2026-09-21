@@ -64,6 +64,26 @@ def test_parse_one_size_product(parser: DecathlonParser) -> None:
     ]
 
 
+def test_discount_ignores_recommended_carousel_products(parser: DecathlonParser) -> None:
+    product = parser.parse_product(fixture_text("decathlon", "one_size.html"), WRISTBAND_URL)
+
+    assert product.discount == 0
+    assert product.price == 199
+
+
+def test_discount_uses_main_product_not_recommendations(parser: DecathlonParser) -> None:
+    url = "https://www.decathlon.com.tr/p/erkek-kapusonlu-fermuarli-sweatshirt-siyah/_/R-p-332651?mc=8773583"
+    product = parser.parse_product(
+        fixture_text("decathlon", "main_discount_with_recommendations.html"),
+        url,
+    )
+
+    assert product.title == "Erkek Kapüşonlu Fermuarlı Sweatshirt - Siyah"
+    assert product.code == "8773583"
+    assert product.price == 750
+    assert product.discount == 21
+
+
 def test_parse_product_list(parser: DecathlonParser) -> None:
     links = parser.parse_product_list(
         fixture_text("decathlon", "product_list.html"),

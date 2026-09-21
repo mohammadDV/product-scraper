@@ -15,6 +15,7 @@ _DISCOUNT_RE = re.compile(r"(-?\d+)\s*%")
 _CURRENCY_RE = re.compile(r"[₺€$£¥]|TL", re.IGNORECASE)
 _NON_DIGIT_RE = re.compile(r"[^\d]")
 _SIZE_CLASS_RE = re.compile(r"\b(inStock|low|outOfStock)\b", re.IGNORECASE)
+_RECOMMENDED_CLASSES = frozenset({"product-block", "product-carousel-item"})
 
 
 def _soup(html: str) -> BeautifulSoup:
@@ -95,20 +96,46 @@ class DecathlonParser(SiteParser):
         return ""
 
     def _extract_price(self, soup: BeautifulSoup) -> int:
-        node = (
-            soup.select_one(".vtmn-items-end > span.vtmn-price")
-            or soup.select_one(".vtmn-items-end > span")
-            or soup.select_one("span.vtmn-price")
+        node = self._first_main_node(
+            soup,
+            (
+                ".vtmn-items-end > span.vtmn-price",
+                ".vtmn-items-end > span",
+                "span.vtmn-price_size--large",
+                "span.vtmn-price",
+            ),
         )
         if node is None:
             return 0
         return parse_price_text(node.get_text(" ", strip=True))
 
     def _extract_discount(self, soup: BeautifulSoup) -> int:
-        node = soup.select_one(".price-discount-rate") or soup.select_one(".price-discount")
+        node = self._first_main_node(soup, (".price-discount-rate", ".price-discount"))
         if node is None:
             return 0
         return parse_discount_text(node.get_text(" ", strip=True))
+
+    def _main_product_root(self, soup: BeautifulSoup) -> Tag:
+        root = soup.select_one("article.product-main-infos--grid")
+        if root is not None:
+            return root
+        heading = soup.find("h1")
+        if isinstance(heading, Tag):
+            article = heading.find_parent("article")
+            if article is not None:
+                return article
+            section = heading.find_parent("section")
+            if section is not None:
+                return section
+        return soup
+
+    def _first_main_node(self, soup: BeautifulSoup, selectors: tuple[str, ...]) -> Tag | None:
+        root = self._main_product_root(soup)
+        for selector in selectors:
+            for node in root.select(selector):
+                if not _is_recommended(node):
+                    return node
+        return None
 
     def _extract_sizes(self, soup: BeautifulSoup) -> dict[str, str]:
         sizes: dict[str, str] = {}
@@ -187,6 +214,17 @@ class DecathlonParser(SiteParser):
         if parts.scheme or parts.netloc:
             return urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query.split("&", 1)[0], ""))
         return href
+
+
+def _is_recommended(node: Tag) -> bool:
+    """True for carousel / 'more products' cards, not the PDP itself."""
+    for parent in (node, *node.parents):
+        classes = parent.get("class", [])
+        if not isinstance(classes, list):
+            classes = str(classes).split()
+        if _RECOMMENDED_CLASSES.intersection(classes):
+            return True
+    return False
 
 
 def parse_price_text(raw: str) -> int:
