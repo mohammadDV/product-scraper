@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from product_scraper.models import BrandRecord, EndpointRecord, ExistingProduct
+from product_scraper.models import BrandRecord, CatalogProduct, EndpointRecord, ExistingProduct
 
 
 class InMemoryProductRepository:
@@ -42,6 +42,29 @@ class InMemoryProductRepository:
                 brand_id=int(row["brand_id"]),
             )
         return None
+
+    def get_catalog_product(self, product_id: int) -> CatalogProduct | None:
+        row = self.products.get(product_id)
+        if row is None:
+            return None
+        images = tuple(item["path"] for item in self.images if item["product_id"] == product_id)
+        sizes = {
+            str(item["code"]): int(item["stock"])
+            for item in self.sizes
+            if item["product_id"] == product_id
+        }
+        return CatalogProduct(
+            id=product_id,
+            url=row.get("url") or "",
+            title=row.get("title") or "",
+            code=str(row.get("code") or ""),
+            price=int(row.get("amount") or 0),
+            discount=int(row.get("discount") or 0),
+            brand_id=int(row.get("brand_id") or 0),
+            category_id=self.categories.get(product_id),
+            images=images,
+            sizes=sizes,
+        )
 
     def insert_product(self, fields: dict) -> int:
         product_id = self._next_id

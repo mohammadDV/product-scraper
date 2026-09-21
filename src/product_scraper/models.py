@@ -61,3 +61,41 @@ class ExistingProduct:
     url: str
     code: str
     brand_id: int
+
+
+@dataclass(frozen=True)
+class CatalogProduct:
+    """Snapshot of a stored product used for admin preview diffs."""
+
+    id: int
+    url: str
+    title: str
+    code: str
+    price: int
+    discount: int
+    brand_id: int
+    category_id: int | None = None
+    images: tuple[str, ...] = ()
+    sizes: dict[str, int] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class FieldChange:
+    field: str
+    current: object
+    incoming: object
+    changed: bool
+
+
+@dataclass(frozen=True)
+class PreviewResult:
+    mode: str
+    action: str
+    product: ScrapedProduct
+    existing: CatalogProduct | None
+    changes: tuple[FieldChange, ...] = ()
+    stored: StoredProduct | None = None
+
+    @property
+    def has_changes(self) -> bool:
+        return any(change.changed for change in self.changes)

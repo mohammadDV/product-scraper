@@ -18,5 +18,14 @@ product-scraper check-proxy
 product-scraper scrape "https://www.decathlon.com.tr/p/.../_/R-p-364504?mc=8941380" --dry-run
 product-scraper scrape "https://www.decathlon.com.tr/p/.../_/R-p-364504?mc=8941380" --category-id 1
 product-scraper run --limit 10 --brand decathlon
+uvicorn product_scraper.api:app --host 127.0.0.1 --port 8001
 pytest
 ```
+
+The HTTP API is what Filament uses:
+
+- `GET /health`
+- `POST /preview` `{ "url" | "code", "brand_id", "category_id?" }`
+- `POST /apply` same body; writes to the database
+
+Docker Compose (`--profile stack`) runs backend, frontend, and this service on `product-scraper:8000`.

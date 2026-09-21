@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from product_scraper.models import BrandRecord, EndpointRecord, ExistingProduct
+from product_scraper.models import BrandRecord, CatalogProduct, EndpointRecord, ExistingProduct
 
 
 class ProductRepository(Protocol):
@@ -13,6 +13,8 @@ class ProductRepository(Protocol):
     def find_product_id_by_url(self, url: str) -> int | None: ...
 
     def find_product_by_code(self, code: str, *, brand_id: int | None = None) -> ExistingProduct | None: ...
+
+    def get_catalog_product(self, product_id: int) -> CatalogProduct | None: ...
 
     def insert_product(self, fields: dict) -> int: ...
 

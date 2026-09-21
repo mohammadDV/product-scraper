@@ -8,7 +8,7 @@ from pymysql.cursors import DictCursor
 
 from product_scraper.config import Settings
 from product_scraper.exceptions import PersistenceError
-from product_scraper.models import BrandRecord, EndpointRecord, ExistingProduct
+from product_scraper.models import BrandRecord, CatalogProduct, EndpointRecord, ExistingProduct
 from product_scraper.persistence.repository import ProductRepository
 
 
@@ -85,6 +85,62 @@ class MySQLProductRepository(ProductRepository):
             url=row["url"] or "",
             code=str(row["code"] or ""),
             brand_id=int(row["brand_id"]),
+        )
+
+    def get_catalog_product(self, product_id: int) -> CatalogProduct | None:
+        with self._connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT id, url, title, code, amount, discount, brand_id
+                    FROM products
+                    WHERE id = %s
+                    LIMIT 1
+                    """,
+                    (product_id,),
+                )
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                cursor.execute(
+                    """
+                    SELECT path FROM files
+                    WHERE product_id = %s AND type = 'image'
+                    ORDER BY priority DESC, id ASC
+                    """,
+                    (product_id,),
+                )
+                images = tuple(str(item["path"]) for item in cursor.fetchall())
+                cursor.execute(
+                    """
+                    SELECT code, stock FROM sizes
+                    WHERE product_id = %s
+                    ORDER BY priority DESC, id ASC
+                    """,
+                    (product_id,),
+                )
+                sizes = {str(item["code"]): int(float(item["stock"] or 0)) for item in cursor.fetchall()}
+                cursor.execute(
+                    """
+                    SELECT category_id FROM category_product
+                    WHERE product_id = %s
+                    ORDER BY id ASC
+                    LIMIT 1
+                    """,
+                    (product_id,),
+                )
+                category = cursor.fetchone()
+        return CatalogProduct(
+            id=int(row["id"]),
+            url=row["url"] or "",
+            title=row["title"] or "",
+            code=str(row["code"] or ""),
+            price=int(float(row["amount"] or 0)),
+            discount=int(float(row["discount"] or 0)),
+            brand_id=int(row["brand_id"]),
+            category_id=int(category["category_id"]) if category else None,
+            images=images,
+            sizes=sizes,
         )
 
     def insert_product(self, fields: dict) -> int:
