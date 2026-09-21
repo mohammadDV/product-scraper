@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 
 from product_scraper.config import Settings
@@ -75,10 +76,50 @@ def test_update_price_and_stock(settings: Settings) -> None:
     repo = InMemoryProductRepository()
     storage = ProductStorage(repo, settings)
     stored = storage.store(_product(), category_id=4, brand_id=2)
-    storage.update_price_and_stock(
-        _product(price=180, sizes={"M 56-59cm": "outOfStock"}),
+    repo.products[stored.id]["is_failed"] = 1
+    original_title = repo.products[stored.id]["title"]
+    original_image = repo.products[stored.id]["image"]
+    original_images = copy.deepcopy(repo.images)
+    original_category = repo.categories[stored.id]
+    original_endpoints = list(repo.endpoints)
+
+    updated = storage.update_price_and_stock(
+        _product(
+            title="Should not persist",
+            price=180,
+            discount=15,
+            images=("https://img.example/changed.jpg",),
+            sizes={"M 56-59cm": "outOfStock", "L": "inStock"},
+        ),
         stored.id,
     )
-    assert repo.products[stored.id]["amount"] == 180
-    assert repo.products[stored.id]["is_failed"] == 0
-    assert repo.sizes[0]["stock"] == 0
+
+    row = repo.products[stored.id]
+    assert updated.created is False
+    assert row["amount"] == 180
+    assert row["discount"] == 15
+    assert row["title"] == original_title
+    assert row["image"] == original_image
+    assert row["is_failed"] == 1
+    assert row["status"] == "pending"
+    assert repo.images == original_images
+    assert repo.categories[stored.id] == original_category
+    assert list(repo.endpoints) == original_endpoints
+    sizes = {item["code"]: item["stock"] for item in repo.sizes}
+    assert sizes["M 56-59cm"] == 0
+    assert sizes["L"] == 10
+
+
+def test_find_product_by_code_optionally_filters_brand(settings: Settings) -> None:
+    repo = InMemoryProductRepository()
+    storage = ProductStorage(repo, settings)
+    stored = storage.store(_product(), category_id=4, brand_id=2)
+
+    found = repo.find_product_by_code("8941380")
+    assert found is not None
+    assert found.id == stored.id
+    assert found.brand_id == 2
+    assert found.url == URL
+    assert repo.find_product_by_code("8941380", brand_id=2) is not None
+    assert repo.find_product_by_code("8941380", brand_id=99) is None
+    assert repo.find_product_by_code("missing") is None

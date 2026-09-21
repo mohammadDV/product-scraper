@@ -8,7 +8,7 @@ from pymysql.cursors import DictCursor
 
 from product_scraper.config import Settings
 from product_scraper.exceptions import PersistenceError
-from product_scraper.models import BrandRecord, EndpointRecord
+from product_scraper.models import BrandRecord, EndpointRecord, ExistingProduct
 from product_scraper.persistence.repository import ProductRepository
 
 
@@ -66,6 +66,26 @@ class MySQLProductRepository(ProductRepository):
                 cursor.execute("SELECT id FROM products WHERE url = %s LIMIT 1", (url,))
                 row = cursor.fetchone()
         return int(row["id"]) if row else None
+
+    def find_product_by_code(self, code: str, *, brand_id: int | None = None) -> ExistingProduct | None:
+        sql = "SELECT id, url, code, brand_id FROM products WHERE code = %s"
+        params: list = [code]
+        if brand_id is not None:
+            sql += " AND brand_id = %s"
+            params.append(brand_id)
+        sql += " LIMIT 1"
+        with self._connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(sql, params)
+                row = cursor.fetchone()
+        if not row:
+            return None
+        return ExistingProduct(
+            id=int(row["id"]),
+            url=row["url"] or "",
+            code=str(row["code"] or ""),
+            brand_id=int(row["brand_id"]),
+        )
 
     def insert_product(self, fields: dict) -> int:
         columns = list(fields)

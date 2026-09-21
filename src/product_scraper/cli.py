@@ -21,7 +21,12 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("check-proxy", help="Fetch PROXY_CHECK_URL through the configured proxy")
 
     scrape = sub.add_parser("scrape", help="Scrape one product URL")
-    scrape.add_argument("url")
+    scrape.add_argument("url", nargs="?", default=None)
+    scrape.add_argument(
+        "--code",
+        default=None,
+        help="Refresh price, discount, and sizes of an existing product. Never creates a product.",
+    )
     scrape.add_argument("--brand", dest="slug", default=None, help="Parser slug, e.g. decathlon")
     scrape.add_argument("--brand-id", type=int, default=None)
     scrape.add_argument("--category-id", type=int, default=None)
@@ -42,6 +47,30 @@ def _app(settings: Settings) -> tuple[ProductScraper, MySQLProductRepository]:
         repository=repository,
     )
     return scraper, repository
+
+
+def execute_scrape(scraper: ProductScraper, args: argparse.Namespace) -> ScrapeResult:
+    persist = not args.dry_run
+    has_url = bool(args.url)
+    has_code = bool(args.code)
+    if has_url == has_code:
+        raise ScraperError("Provide either a URL or --code")
+    if args.code:
+        return scraper.refresh_by_code(
+            args.code,
+            brand_id=args.brand_id,
+            slug=args.slug,
+            persist=persist,
+        )
+    if persist and args.category_id is None:
+        raise ScraperError("--category-id is required unless --dry-run is set")
+    return scraper.scrape(
+        args.url,
+        category_id=args.category_id or 0,
+        brand_id=args.brand_id,
+        slug=args.slug,
+        persist=persist,
+    )
 
 
 def _print_product(result: ScrapeResult) -> None:
@@ -66,16 +95,7 @@ def main(argv: list[str] | None = None) -> int:
 
         scraper, repository = _app(settings)
         if args.command == "scrape":
-            persist = not args.dry_run
-            if persist and args.category_id is None:
-                raise ScraperError("--category-id is required unless --dry-run is set")
-            result = scraper.scrape(
-                args.url,
-                category_id=args.category_id or 0,
-                brand_id=args.brand_id,
-                slug=args.slug,
-                persist=persist,
-            )
+            result = execute_scrape(scraper, args)
             _print_product(result)
             return 0
 

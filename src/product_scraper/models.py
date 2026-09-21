@@ -51,3 +51,13 @@ class StoredProduct:
     id: int
     url: str
     created: bool
+
+
+@dataclass(frozen=True)
+class ExistingProduct:
+    """A product already stored in the catalog; used for offer-only refreshes."""
+
+    id: int
+    url: str
+    code: str
+    brand_id: int

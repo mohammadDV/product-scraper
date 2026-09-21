@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from product_scraper.models import BrandRecord, EndpointRecord
+from product_scraper.models import BrandRecord, EndpointRecord, ExistingProduct
 
 
 class InMemoryProductRepository:
@@ -28,6 +28,20 @@ class InMemoryProductRepository:
 
     def find_product_id_by_url(self, url: str) -> int | None:
         return self.products_by_url.get(url)
+
+    def find_product_by_code(self, code: str, *, brand_id: int | None = None) -> ExistingProduct | None:
+        for product_id, row in self.products.items():
+            if str(row.get("code") or "") != str(code):
+                continue
+            if brand_id is not None and row.get("brand_id") != brand_id:
+                continue
+            return ExistingProduct(
+                id=product_id,
+                url=row.get("url") or "",
+                code=str(row.get("code") or ""),
+                brand_id=int(row["brand_id"]),
+            )
+        return None
 
     def insert_product(self, fields: dict) -> int:
         product_id = self._next_id

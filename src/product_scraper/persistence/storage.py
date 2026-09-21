@@ -61,12 +61,12 @@ class ProductStorage:
         return StoredProduct(id=product_id, url=product.url, created=created)
 
     def update_price_and_stock(self, product: ScrapedProduct, product_id: int) -> StoredProduct:
+        """Update only price, discount, and sizes. Never creates a product or touches other fields."""
         self._repository.update_product(
             product_id,
             {
                 "amount": product.price,
                 "discount": product.discount,
-                "is_failed": 0,
                 "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             },
         )

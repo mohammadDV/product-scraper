@@ -37,3 +37,9 @@ class HttpError(ScraperError):
 
 class PersistenceError(ScraperError):
     pass
+
+
+class ProductNotFoundError(ScraperError):
+    def __init__(self, code: str) -> None:
+        super().__init__("محصول موجود نیست")
+        self.code = code
