@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from product_scraper.models import BrandRecord, CatalogProduct, EndpointRecord, ExistingProduct
 
 
@@ -74,9 +76,11 @@ class InMemoryProductRepository:
         return product_id
 
     def update_product(self, product_id: int, fields: dict) -> None:
-        self.products[product_id].update(fields)
-        if "url" in fields:
-            self.products_by_url[fields["url"]] = product_id
+        payload = dict(fields)
+        payload["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.products[product_id].update(payload)
+        if "url" in payload:
+            self.products_by_url[payload["url"]] = product_id
 
     def sync_category(self, product_id: int, category_id: int) -> None:
         self.categories[product_id] = category_id

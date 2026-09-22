@@ -64,12 +64,14 @@ def test_store_updates_existing_product(settings: Settings) -> None:
     repo = InMemoryProductRepository()
     storage = ProductStorage(repo, settings)
     first = storage.store(_product(price=199), category_id=4, brand_id=2)
+    assert repo.products[first.id]["updated_at"]
     second = storage.store(_product(price=149, discount=25), category_id=4, brand_id=2)
 
     assert first.id == second.id
     assert second.created is False
     assert repo.products[second.id]["amount"] == 149
     assert repo.products[second.id]["discount"] == 25
+    assert repo.products[second.id]["updated_at"]
 
 
 def test_update_price_and_stock(settings: Settings) -> None:
@@ -98,6 +100,7 @@ def test_update_price_and_stock(settings: Settings) -> None:
     assert updated.created is False
     assert row["amount"] == 180
     assert row["discount"] == 15
+    assert row["updated_at"]
     assert row["title"] == original_title
     assert row["image"] == original_image
     assert row["is_failed"] == 1
@@ -123,3 +126,14 @@ def test_find_product_by_code_optionally_filters_brand(settings: Settings) -> No
     assert repo.find_product_by_code("8941380", brand_id=2) is not None
     assert repo.find_product_by_code("8941380", brand_id=99) is None
     assert repo.find_product_by_code("missing") is None
+
+
+def test_update_product_always_sets_updated_at() -> None:
+    repo = InMemoryProductRepository()
+    product_id = repo.insert_product({"url": URL, "amount": 199, "title": "Old"})
+    repo.products[product_id].pop("updated_at", None)
+
+    repo.update_product(product_id, {"amount": 180})
+
+    assert repo.products[product_id]["amount"] == 180
+    assert repo.products[product_id]["updated_at"]

@@ -153,11 +153,12 @@ class MySQLProductRepository(ProductRepository):
                 return int(cursor.lastrowid)
 
     def update_product(self, product_id: int, fields: dict) -> None:
-        assignments = ", ".join(f"{column} = %s" for column in fields)
+        payload = {column: value for column, value in fields.items() if column != "updated_at"}
+        assignments = ", ".join([*(f"{column} = %s" for column in payload), "updated_at = NOW()"])
         sql = f"UPDATE products SET {assignments} WHERE id = %s"
         with self._connect() as connection:
             with connection.cursor() as cursor:
-                cursor.execute(sql, [*fields.values(), product_id])
+                cursor.execute(sql, [*payload.values(), product_id])
 
     def sync_category(self, product_id: int, category_id: int) -> None:
         with self._connect() as connection:
