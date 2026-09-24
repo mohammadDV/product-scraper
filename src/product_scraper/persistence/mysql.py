@@ -113,9 +113,11 @@ class MySQLProductRepository(ProductRepository):
                 images = tuple(str(item["path"]) for item in cursor.fetchall())
                 cursor.execute(
                     """
-                    SELECT code, stock FROM sizes
-                    WHERE product_id = %s
-                    ORDER BY priority DESC, id ASC
+                    SELECT s.code, COALESCE(st.quantity, 0) AS stock
+                    FROM sizes s
+                    LEFT JOIN stocks st ON st.size_id = s.id
+                    WHERE s.product_id = %s
+                    ORDER BY s.priority DESC, s.id ASC
                     """,
                     (product_id,),
                 )
@@ -226,22 +228,47 @@ class MySQLProductRepository(ProductRepository):
                 )
                 row = cursor.fetchone()
                 if row:
+                    size_id = int(row["id"])
                     cursor.execute(
                         """
                         UPDATE sizes
-                        SET title = %s, status = %s, stock = %s, priority = %s, updated_at = NOW()
+                        SET title = %s, status = %s, priority = %s, updated_at = NOW()
                         WHERE id = %s
                         """,
-                        (title, status, stock, priority, row["id"]),
+                        (title, status, priority, size_id),
                     )
-                    return
+                else:
+                    cursor.execute(
+                        """
+                        INSERT INTO sizes (title, code, status, priority, product_id, created_at, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
+                        """,
+                        (title, code, status, priority, product_id),
+                    )
+                    size_id = int(cursor.lastrowid)
+
                 cursor.execute(
-                    """
-                    INSERT INTO sizes (title, code, stock, status, priority, product_id, created_at, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
-                    """,
-                    (title, code, stock, status, priority, product_id),
+                    "SELECT id FROM stocks WHERE size_id = %s LIMIT 1",
+                    (size_id,),
                 )
+                stock_row = cursor.fetchone()
+                if stock_row:
+                    cursor.execute(
+                        """
+                        UPDATE stocks
+                        SET quantity = %s, updated_at = NOW()
+                        WHERE size_id = %s
+                        """,
+                        (stock, size_id),
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        INSERT INTO stocks (size_id, reserved, quantity, created_at, updated_at)
+                        VALUES (%s, 0, %s, NOW(), NOW())
+                        """,
+                        (size_id, stock),
+                    )
 
     def insert_endpoints_if_missing(self, rows: list[dict]) -> None:
         if not rows:

@@ -39,7 +39,7 @@ def test_store_inserts_product_images_sizes_and_related_endpoints(settings: Sett
     assert row["amount"] == 199
     assert row["discount"] == 0
     assert row["status"] == "pending"
-    assert row["stock"] == 10
+    assert "stock" not in row
     assert row["image"] == "https://img.example/1.jpg"
     assert row["brand_id"] == 2
     assert row["color_id"] == 1
@@ -53,7 +53,10 @@ def test_store_inserts_product_images_sizes_and_related_endpoints(settings: Sett
         "https://img.example/2.jpg",
     ]
     assert [image["priority"] for image in repo.images] == [10, 9]
-    sizes = {item["code"]: item["stock"] for item in repo.sizes}
+    sizes = {
+        item["code"]: repo.stocks[int(item["id"])]["quantity"]
+        for item in repo.sizes
+    }
     assert sizes == {"M 56-59cm": 10, "L": 5, "XL": 0}
     assert list(repo.endpoints) == [
         "https://www.decathlon.com.tr/p/bileklik-sag-veya-sol-seviye-1/_/R-p-364504?mc=8941381",
@@ -108,7 +111,10 @@ def test_update_price_and_stock(settings: Settings) -> None:
     assert repo.images == original_images
     assert repo.categories[stored.id] == original_category
     assert list(repo.endpoints) == original_endpoints
-    sizes = {item["code"]: item["stock"] for item in repo.sizes}
+    sizes = {
+        item["code"]: repo.stocks[int(item["id"])]["quantity"]
+        for item in repo.sizes
+    }
     assert sizes["M 56-59cm"] == 0
     assert sizes["L"] == 10
 

@@ -35,7 +35,6 @@ class ProductStorage:
             "discount": product.discount,
             "image": product.images[0] if product.images else None,
             "status": "pending",
-            "stock": self._settings.default_stock,
             "vip": 0,
             "priority": 1,
             "color_id": self._settings.default_color_id,

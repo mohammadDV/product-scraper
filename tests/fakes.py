@@ -15,9 +15,11 @@ class InMemoryProductRepository:
         self.categories: dict[int, int] = {}
         self.images: list[dict] = []
         self.sizes: list[dict] = []
+        self.stocks: dict[int, dict] = {}
         self.endpoints: dict[str, dict] = {}
         self.done_endpoints: list[int] = []
         self._next_id = 1
+        self._next_size_id = 1
 
     def get_brand_by_slug(self, slug: str) -> BrandRecord | None:
         return self.brands.get(slug)
@@ -51,7 +53,7 @@ class InMemoryProductRepository:
             return None
         images = tuple(item["path"] for item in self.images if item["product_id"] == product_id)
         sizes = {
-            str(item["code"]): int(item["stock"])
+            str(item["code"]): int(self.stocks.get(int(item["id"]), {}).get("quantity", 0))
             for item in self.sizes
             if item["product_id"] == product_id
         }
@@ -118,18 +120,30 @@ class InMemoryProductRepository:
     ) -> None:
         for row in self.sizes:
             if row["product_id"] == product_id and row["code"] == code:
-                row.update({"title": title, "status": status, "stock": stock, "priority": priority})
+                row.update({"title": title, "status": status, "priority": priority})
+                self.stocks[int(row["id"])] = {
+                    "size_id": int(row["id"]),
+                    "reserved": 0,
+                    "quantity": stock,
+                }
                 return
+        size_id = self._next_size_id
+        self._next_size_id += 1
         self.sizes.append(
             {
+                "id": size_id,
                 "product_id": product_id,
                 "code": code,
                 "title": title,
                 "status": status,
-                "stock": stock,
                 "priority": priority,
             }
         )
+        self.stocks[size_id] = {
+            "size_id": size_id,
+            "reserved": 0,
+            "quantity": stock,
+        }
 
     def insert_endpoints_if_missing(self, rows: list[dict]) -> None:
         for row in rows:

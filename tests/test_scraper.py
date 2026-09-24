@@ -109,7 +109,11 @@ def test_refresh_by_code_updates_only_offer_fields(settings) -> None:
     assert repo.images == original_images
     assert list(repo.endpoints) == original_endpoints
     assert repo.categories[stored.id] == original_category
-    sizes = {item["code"]: item["stock"] for item in repo.sizes if item["product_id"] == stored.id}
+    sizes = {
+        item["code"]: repo.stocks[int(item["id"])]["quantity"]
+        for item in repo.sizes
+        if item["product_id"] == stored.id
+    }
     assert sizes["M 56-59cm"] == 10
 
 
