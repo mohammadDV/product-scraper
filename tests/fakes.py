@@ -16,10 +16,12 @@ class InMemoryProductRepository:
         self.images: list[dict] = []
         self.sizes: list[dict] = []
         self.stocks: dict[int, dict] = {}
+        self.inventory_transactions: list[dict] = []
         self.endpoints: dict[str, dict] = {}
         self.done_endpoints: list[int] = []
         self._next_id = 1
         self._next_size_id = 1
+        self._next_inventory_transaction_id = 1
 
     def get_brand_by_slug(self, slug: str) -> BrandRecord | None:
         return self.brands.get(slug)
@@ -121,11 +123,20 @@ class InMemoryProductRepository:
         for row in self.sizes:
             if row["product_id"] == product_id and row["code"] == code:
                 row.update({"title": title, "status": status, "priority": priority})
-                self.stocks[int(row["id"])] = {
-                    "size_id": int(row["id"]),
+                size_id = int(row["id"])
+                previous_quantity = int(self.stocks.get(size_id, {}).get("quantity", 0))
+                resulting_quantity = int(stock)
+                self.stocks[size_id] = {
+                    "size_id": size_id,
                     "reserved": 0,
-                    "quantity": stock,
+                    "quantity": resulting_quantity,
                 }
+                self._record_inventory_transaction(
+                    product_id=product_id,
+                    size_id=size_id,
+                    previous_quantity=previous_quantity,
+                    resulting_quantity=resulting_quantity,
+                )
                 return
         size_id = self._next_size_id
         self._next_size_id += 1
@@ -139,11 +150,46 @@ class InMemoryProductRepository:
                 "priority": priority,
             }
         )
+        previous_quantity = 0
+        resulting_quantity = int(stock)
         self.stocks[size_id] = {
             "size_id": size_id,
             "reserved": 0,
-            "quantity": stock,
+            "quantity": resulting_quantity,
         }
+        self._record_inventory_transaction(
+            product_id=product_id,
+            size_id=size_id,
+            previous_quantity=previous_quantity,
+            resulting_quantity=resulting_quantity,
+        )
+
+    def _record_inventory_transaction(
+        self,
+        *,
+        product_id: int,
+        size_id: int,
+        previous_quantity: int,
+        resulting_quantity: int,
+    ) -> None:
+        quantity_change = resulting_quantity - previous_quantity
+        if quantity_change == 0:
+            return
+        self.inventory_transactions.append(
+            {
+                "id": self._next_inventory_transaction_id,
+                "product_id": product_id,
+                "size_id": size_id,
+                "type": "adjust",
+                "source": "scraper",
+                "user_id": None,
+                "quantity_change": quantity_change,
+                "previous_quantity": previous_quantity,
+                "resulting_quantity": resulting_quantity,
+                "description": "scraper upsert_size",
+            }
+        )
+        self._next_inventory_transaction_id += 1
 
     def insert_endpoints_if_missing(self, rows: list[dict]) -> None:
         for row in rows:

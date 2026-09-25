@@ -248,10 +248,13 @@ class MySQLProductRepository(ProductRepository):
                     size_id = int(cursor.lastrowid)
 
                 cursor.execute(
-                    "SELECT id FROM stocks WHERE size_id = %s LIMIT 1",
+                    "SELECT id, quantity FROM stocks WHERE size_id = %s LIMIT 1 FOR UPDATE",
                     (size_id,),
                 )
                 stock_row = cursor.fetchone()
+                previous_quantity = int(stock_row["quantity"]) if stock_row else 0
+                resulting_quantity = int(stock)
+
                 if stock_row:
                     cursor.execute(
                         """
@@ -259,7 +262,7 @@ class MySQLProductRepository(ProductRepository):
                         SET quantity = %s, updated_at = NOW()
                         WHERE size_id = %s
                         """,
-                        (stock, size_id),
+                        (resulting_quantity, size_id),
                     )
                 else:
                     cursor.execute(
@@ -267,7 +270,30 @@ class MySQLProductRepository(ProductRepository):
                         INSERT INTO stocks (size_id, reserved, quantity, created_at, updated_at)
                         VALUES (%s, 0, %s, NOW(), NOW())
                         """,
-                        (size_id, stock),
+                        (size_id, resulting_quantity),
+                    )
+
+                quantity_change = resulting_quantity - previous_quantity
+                if quantity_change != 0:
+                    cursor.execute(
+                        """
+                        INSERT INTO inventory_transactions (
+                            product_id, size_id, type, source, user_id,
+                            quantity_change, previous_quantity, resulting_quantity,
+                            description, created_at, updated_at
+                        )
+                        VALUES (%s, %s, %s, %s, NULL, %s, %s, %s, %s, NOW(), NOW())
+                        """,
+                        (
+                            product_id,
+                            size_id,
+                            "adjust",
+                            "scraper",
+                            quantity_change,
+                            previous_quantity,
+                            resulting_quantity,
+                            "scraper upsert_size",
+                        ),
                     )
 
     def insert_endpoints_if_missing(self, rows: list[dict]) -> None:
